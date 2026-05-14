@@ -58,12 +58,9 @@ Add the layer ARN to your function. Because Lambda already puts `/opt/bin` on `P
 import subprocess
 
 def handler(event, context):
-    result = subprocess.check_output(
+    subprocess.check_call(
         ["git", "clone", "--depth", "1", "https://github.com/example/repo.git", "/tmp/repo"],
-        stderr=subprocess.STDOUT,
-        text=True,
     )
-    return result
 ```
 
 ### SSH remotes
@@ -86,22 +83,24 @@ subprocess.check_call(["git", "clone", "git@github.com:example/repo.git", "/tmp/
 
 ## How the build works
 
-The build runs entirely inside `public.ecr.aws/lambda/python:3.12` — the same image AWS uses for the Python 3.12 runtime — so every binary is compiled for and linked against the exact same Amazon Linux 2023 environment.
+`build.sh` launches a Docker container using `public.ecr.aws/lambda/python:3.12` — the same image AWS uses for the Python 3.12 runtime — and runs `build_layer.sh` inside it. Building inside the runtime image guarantees every binary is compiled for and linked against the exact same Amazon Linux 2023 environment.
 
-Key steps in `build.sh`:
+Key steps in `build_layer.sh`:
 
-1. Install `git`, `openssh`, and `patchelf` via `dnf`
-2. Copy `git`, `ssh`, and the `git-core` helper binaries to a staging directory
-3. Discover all shared library dependencies via `ldd` (two transitive passes)
-4. Copy needed `.so` files to `staging/lib/` (glibc-family libs are excluded — they are guaranteed present in the Lambda runtime)
-5. Use `patchelf --set-rpath /opt/lib` on every ELF binary so the dynamic linker finds the bundled libs at runtime without requiring `LD_LIBRARY_PATH`
+1. Install `git`, `openssh-clients`, `patchelf`, `zip`, and `findutils` via `dnf`
+2. Copy `git`, `ssh`, and related binaries to a staging directory; rename the git ELF to `git.real` and place a wrapper script at `git` that sets `GIT_EXEC_PATH=/opt/libexec/git-core` (see layer structure below)
+3. Copy `/usr/libexec/git-core/` helpers to `libexec/git-core/`
+4. Discover all shared library dependencies via a single `ldd` pass across all staged ELFs; copy `.so` files and SONAME symlinks to `lib/` (glibc-family libs are excluded — they are guaranteed present in the Lambda runtime)
+5. Run `patchelf --set-rpath /opt/lib` on every ELF binary so the dynamic linker finds the bundled libs at runtime without requiring `LD_LIBRARY_PATH`
 6. Verify no "not found" entries remain in `ldd` output, then zip
 
 ## Layer structure
 
 ```
 bin/
-  git, ssh, ssh-add, ssh-agent, ssh-keygen, ssh-keyscan, scp
+  git              # wrapper script — sets GIT_EXEC_PATH, execs git.real
+  git.real         # actual git ELF binary (RPATH=/opt/lib)
+  ssh, ssh-add, ssh-agent, ssh-keygen, ssh-keyscan, scp
   git-receive-pack, git-upload-pack, git-upload-archive
 lib/
   libcurl.so.4, libssl.so.3, libcrypto.so.3, libpcre2-8.so.0,
@@ -111,12 +110,6 @@ libexec/git-core/
 etc/ssh/
   ssh_config, moduli
 ```
-
-## Published layer ARNs
-
-| Region | Layer ARN |
-|---|---|
-| us-east-1 | _(fill in after `make publish`)_ |
 
 ## Architecture note
 
