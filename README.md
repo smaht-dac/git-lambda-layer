@@ -48,6 +48,7 @@ make check
 | `public` | Any AWS account can use the layer ARN |
 | `none` | Layer is private to your account |
 | `123456789012` | Shared with that specific AWS account |
+| `111111111111,222222222222` | Shared with multiple specific accounts (comma-separated) |
 | `o-abc123def456` | Shared with your entire AWS Organization |
 
 ## Using the layer in a Lambda function

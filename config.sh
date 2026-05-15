@@ -15,11 +15,12 @@ export LAYER_ZIP="layer.zip"
 export PUBLISH_REGIONS="us-east-1"
 
 # Layer sharing / cross-account access:
-#   "public"       — adds principal '*'  (any AWS account can use the layer)
-#   "none"         — no permission call  (private to your account only)
-#   "<account-id>" — share with one specific AWS account
-#   "<org-id>"     — share with an AWS Organization (e.g. "o-abc123def456")
-export LAYER_PRINCIPAL="public"
+#   "public"                    — adds principal '*'  (any AWS account can use the layer)
+#   "none"                      — no permission call  (private to your account only)
+#   "<account-id>"              — share with one specific AWS account
+#   "<id1>,<id2>,<id3>"         — share with multiple specific AWS accounts (comma-separated)
+#   "<org-id>"                  — share with an AWS Organization (e.g. "o-abc123def456")
+export LAYER_PRINCIPAL="none"
 
 # S3 staging bucket for the layer zip (optional).
 # Leave blank to use the Lambda API's direct --zip-file upload (works up to 50 MB).

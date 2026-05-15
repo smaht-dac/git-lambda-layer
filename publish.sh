@@ -101,15 +101,19 @@ publish_region() {
     echo "[${region}] Granted org access (${principal})"
 
   else
-    # Treat as an AWS account ID
-    aws lambda add-layer-version-permission \
-      --region "${region}" \
-      --layer-name "${layer_name}" \
-      --version-number "${version}" \
-      --statement-id AllowAccountAccess \
-      --action lambda:GetLayerVersion \
-      --principal "${principal}" > /dev/null
-    echo "[${region}] Granted access to account ${principal}"
+    # One or more account IDs (comma-separated). Each requires its own permission statement.
+    local idx=0
+    echo "${principal}" | tr ',' '\n' | tr -d ' ' | while read -r acct; do
+      aws lambda add-layer-version-permission \
+        --region "${region}" \
+        --layer-name "${layer_name}" \
+        --version-number "${version}" \
+        --statement-id "AllowAccount${idx}" \
+        --action lambda:GetLayerVersion \
+        --principal "${acct}" > /dev/null
+      echo "[${region}] Granted access to account ${acct}"
+      idx=$((idx + 1))
+    done
   fi
 
   echo "arn:aws:lambda:${region}:${account_id}:layer:${layer_name}:${version}"
